@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.database import Base, SessionLocal, engine
 from app.main_helpers import static_dir
-from app.routers import auth, films, pages
+from app.routers import admin, auth, bookings, films, pages
 from app.seed import seed
 
 app = FastAPI(
@@ -20,6 +20,8 @@ app = FastAPI(
 app.mount("/static", StaticFiles(directory=str(static_dir())), name="static")
 app.include_router(auth.router)
 app.include_router(films.router)
+app.include_router(bookings.router)
+app.include_router(admin.router)
 app.include_router(pages.router)
 
 

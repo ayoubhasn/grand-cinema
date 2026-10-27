@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Administration — Le Grand Cinéma{% endblock %}
+{% block content %}
+<section>
+  <h1>Espace administrateur</h1>
+  <div class="admin-tabs">
+    <button data-tab="stats" class="active">Statistiques</button>
+    <button data-tab="films">Films</button>
+    <button data-tab="rooms">Salles</button>
+    <button data-tab="screenings">Séances</button>
+    <button data-tab="bookings">Réservations</button>
+  </div>
+  <p class="form-error" id="admin-error"></p>
+
+  <div id="tab-stats">
+    <div class="stat-grid" id="stat-boxes"></div>
+    <h2>Taux de remplissage par film</h2>
+    <table class="data"><thead><tr><th>Film</th><th>Réservations</th><th>Places</th><th>Revenus</th><th>Remplissage</th></tr></thead><tbody id="stats-films"></tbody></table>
+    <h2>Taux de remplissage par salle</h2>
+    <table class="data"><thead><tr><th>Salle</th><th>Places vendues</th><th>Remplissage</th></tr></thead><tbody id="stats-rooms"></tbody></table>
+    <h2>Taux de remplissage par séance</h2>
+    <table class="data"><thead><tr><th>Séance</th><th>Salle</th><th>Date</th><th>Places</th><th>Remplissage</th><th>Revenus</th></tr></thead><tbody id="stats-screenings"></tbody></table>
+  </div>
+
+  <div id="tab-films" hidden>
+    <h2>Ajouter un film</h2>
+    <form id="film-form" class="form-card" style="margin:0 0 1.5rem 0;">
+      <label>Titre <input name="title" required></label>
+      <label>Genre <input name="genre"></label>
+      <label>Durée (min) <input name="duration_min" type="number" min="0"></label>
+      <label>Réalisateur <input name="director"></label>
+      <label>Année <input name="release_year" type="number"></label>
+      <label>Affiche <select name="poster"><option>film1.svg</option><option>film2.svg</option><option>film3.svg</option><option>film4.svg</option><option>film5.svg</option><option>film6.svg</option></select></label>
+      <label>Synopsis <textarea name="synopsis" rows="3"></textarea></label>
+      <button class="btn" type="submit">Ajouter</button>
+    </form>
+    <table class="data"><thead><tr><th>Titre</th><th>Genre</th><th>Durée</th><th>Année</th><th></th></tr></thead><tbody id="films-list"></tbody></table>
+  </div>
+
+  <div id="tab-rooms" hidden>
+    <h2>Ajouter une salle</h2>
+    <form id="room-form" class="form-card" style="margin:0 0 1.5rem 0;">
+      <label>Nom <input name="name" required></label>
+      <label>Type <input name="room_type" value="Standard"></label>
+      <label>Rangées <input name="rows" type="number" min="1" required></label>
+      <label>Sièges par rangée <input name="cols" type="number" min="1" required></label>
+      <button class="btn" type="submit">Ajouter</button>
+    </form>
+    <table class="data"><thead><tr><th>Nom</th><th>Type</th><th>Capacité</th><th>Plan</th><th></th></tr></thead><tbody id="rooms-list"></tbody></table>
+  </div>
+
+  <div id="tab-screenings" hidden>
+    <h2>Ajouter une séance</h2>
+    <form id="screening-form" class="form-card" style="margin:0 0 1.5rem 0;">
+      <label>Film <select name="film_id" id="screening-film"></select></label>
+      <label>Salle <select name="room_id" id="screening-room"></select></label>
+      <label>Date et heure <input name="start_time" type="datetime-local" required></label>
+      <label>Prix (€) <input name="price" type="number" step="0.01" value="11"></label>
+      <button class="btn" type="submit">Ajouter</button>
+    </form>
+    <table class="data"><thead><tr><th>Film</th><th>Salle</th><th>Date</th><th>Prix</th><th></th></tr></thead><tbody id="screenings-list"></tbody></table>
+  </div>
+
+  <div id="tab-bookings" hidden>
+    <table class="data"><thead><tr><th>Client</th><th>Film</th><th>Salle</th><th>Date</th><th>Places</th><th>Total</th><th>Statut</th><th></th></tr></thead><tbody id="bookings-list"></tbody></table>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}
+<script src="/static/js/admin.js"></script>
+{% endblock %}

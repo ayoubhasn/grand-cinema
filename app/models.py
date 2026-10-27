@@ -1,13 +1,20 @@
 """Modèles de données (SQLAlchemy).
 
-Socle de la branche ``main`` : utilisateurs, films, salles, séances.
-Les modèles de réservation (Reservation, ReservationSeat, Ticket) sont
-ajoutés sur la branche ``feature/reservation``.
+Socle : utilisateurs, films, salles, séances.
+Branche ``feature/reservation`` : réservations, places réservées, billets.
 """
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -24,6 +31,10 @@ class User(Base):
     full_name: Mapped[str] = mapped_column(String(255), default="")
     role: Mapped[str] = mapped_column(String(20), default="user")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    reservations: Mapped[list["Reservation"]] = relationship(
+        "Reservation", back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class Film(Base):
@@ -75,3 +86,73 @@ class Screening(Base):
 
     film: Mapped[Film] = relationship("Film", back_populates="screenings")
     room: Mapped[Room] = relationship("Room", back_populates="screenings")
+    reservations: Mapped[list["Reservation"]] = relationship(
+        "Reservation", back_populates="screening", cascade="all, delete-orphan"
+    )
+
+
+class Reservation(Base):
+    """Réservation d'un utilisateur pour une séance."""
+
+    __tablename__ = "reservations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    screening_id: Mapped[int] = mapped_column(ForeignKey("screenings.id"))
+    status: Mapped[str] = mapped_column(String(20), default="confirmed")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    user: Mapped[User] = relationship("User", back_populates="reservations")
+    screening: Mapped[Screening] = relationship(
+        "Screening", back_populates="reservations"
+    )
+    seats: Mapped[list["ReservationSeat"]] = relationship(
+        "ReservationSeat", back_populates="reservation", cascade="all, delete-orphan"
+    )
+    ticket: Mapped["Ticket | None"] = relationship(
+        "Ticket",
+        back_populates="reservation",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+
+
+class ReservationSeat(Base):
+    """Une place réservée dans une séance.
+
+    La contrainte unique (séance, place) est la protection centrale
+    contre la double réservation : la base refuse toute seconde
+    insertion de la même place pour la même séance, même en concurrence.
+    """
+
+    __tablename__ = "reservation_seats"
+    __table_args__ = (
+        UniqueConstraint("screening_id", "seat_label", name="uq_screening_seat"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    reservation_id: Mapped[int] = mapped_column(ForeignKey("reservations.id"))
+    screening_id: Mapped[int] = mapped_column(ForeignKey("screenings.id"))
+    seat_label: Mapped[str] = mapped_column(String(10))
+
+    reservation: Mapped[Reservation] = relationship(
+        "Reservation", back_populates="seats"
+    )
+
+
+class Ticket(Base):
+    """Billet électronique d'une réservation (QR code)."""
+
+    __tablename__ = "tickets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    reservation_id: Mapped[int] = mapped_column(
+        ForeignKey("reservations.id"), unique=True
+    )
+    code: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    status: Mapped[str] = mapped_column(String(20), default="valid")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    reservation: Mapped[Reservation] = relationship(
+        "Reservation", back_populates="ticket"
+    )

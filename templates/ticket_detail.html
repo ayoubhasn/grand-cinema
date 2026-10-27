@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Billet {{ ticket.code }} — Le Grand Cinéma{% endblock %}
+{% block content %}
+<section class="ticket-card">
+  <h1>🎟️ Billet électronique</h1>
+  <h2>{{ ticket.reservation.screening.film.title }}</h2>
+  <p class="meta">{{ ticket.reservation.screening.room.name }} · {{ ticket.reservation.screening.start_time.strftime("%d/%m/%Y à %H:%M") }}</p>
+  <p>Places : {{ ticket.reservation.seats | map(attribute="seat_label") | join(", ") }}</p>
+  <p>Code : <strong>{{ ticket.code }}</strong> · Statut : <strong>{{ ticket.status }}</strong></p>
+  <img src="/api/tickets/{{ ticket.code }}/qr.png" alt="QR code du billet {{ ticket.code }}">
+  <p>Présentez ce QR code à l'entrée de la salle.</p>
+  <p><a href="/api/tickets/{{ ticket.code }}/qr.png" download="billet-{{ ticket.code }}.png">Télécharger le QR code (PNG)</a></p>
+</section>
+{% endblock %}

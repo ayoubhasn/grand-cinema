@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Le Grand Cinéma{% endblock %}</title>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<header class="site-header">
+  <a class="logo" href="/">🎬 Le Grand Cinéma</a>
+  <nav>
+    <a href="/">Films</a>
+    {% if user %}
+      <a href="/mes-billets">Mes billets</a>
+      {% if user.role == "admin" %}
+        <a href="/admin">Administration</a>
+      {% endif %}
+      <button id="logout-btn" class="link-btn">Déconnexion ({{ user.email }})</button>
+    {% else %}
+      <a href="/login">Connexion</a>
+      <a href="/register">Inscription</a>
+    {% endif %}
+  </nav>
+</header>
+<main class="container">
+  {% block content %}{% endblock %}
+</main>
+<footer class="site-footer">
+  <p>Le Grand Cinéma — 10 salles, 1 700 places — Réservation en ligne, billets dématérialisés.</p>
+</footer>
+<script src="/static/js/main.js"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

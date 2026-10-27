@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Le Grand Cinéma — Films à l'affiche{% endblock %}
+{% block content %}
+<section class="hero">
+  <h1>Films à l'affiche</h1>
+  <p>Consultez les films, choisissez votre séance, réservez vos places en ligne et recevez votre billet dématérialisé.</p>
+</section>
+<section class="film-grid">
+  {% for film in films %}
+  <article class="film-card">
+    <a href="/films/{{ film.id }}">
+      <img src="/static/posters/{{ film.poster }}" alt="Affiche de {{ film.title }}" loading="lazy">
+      <h2>{{ film.title }}</h2>
+    </a>
+    <p class="meta">{{ film.genre }} · {{ film.duration_min }} min · {{ film.release_year }}</p>
+    <p class="synopsis">{{ film.synopsis[:140] }}…</p>
+    <a class="btn" href="/films/{{ film.id }}">Voir les séances</a>
+  </article>
+  {% else %}
+  <p>Aucun film à l'affiche pour le moment.</p>
+  {% endfor %}
+</section>
+{% endblock %}

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Connexion — Le Grand Cinéma{% endblock %}
+{% block content %}
+<section class="form-card">
+  <h1>Connexion</h1>
+  <form id="login-form">
+    <label>E-mail <input type="email" name="email" required></label>
+    <label>Mot de passe <input type="password" name="password" required></label>
+    <p class="form-error" id="login-error"></p>
+    <button class="btn" type="submit">Se connecter</button>
+  </form>
+  <p>Pas encore de compte ? <a href="/register">Créez-en un</a>.</p>
+  <aside class="demo-box">
+    <h2>Comptes de démonstration</h2>
+    <p>Administrateur : <code>admin@grandcinema.fr</code> / <code>Admin123!</code></p>
+    <p>Utilisateur : <code>user@grandcinema.fr</code> / <code>User123!</code></p>
+  </aside>
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById("login-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(event.target).entries());
+  const res = await fetch("/api/auth/login", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(data),
+  });
+  if (res.ok) {
+    window.location.href = "/";
+  } else {
+    const body = await res.json();
+    document.getElementById("login-error").textContent = body.detail || "Connexion impossible.";
+  }
+});
+</script>
+{% endblock %}

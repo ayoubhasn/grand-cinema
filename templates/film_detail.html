@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}{{ film.title }} — Le Grand Cinéma{% endblock %}
+{% block content %}
+<section class="film-detail">
+  <img class="poster-large" src="/static/posters/{{ film.poster }}" alt="Affiche de {{ film.title }}">
+  <div>
+    <h1>{{ film.title }}</h1>
+    <p class="meta">{{ film.genre }} · {{ film.duration_min }} min · {{ film.release_year }} · Réal. {{ film.director }}</p>
+    <p>{{ film.synopsis }}</p>
+  </div>
+</section>
+<section>
+  <h2>Calendrier des séances</h2>
+  {% for day, screenings in by_day.items() %}
+  <h3>{{ day }}</h3>
+  <ul class="screening-list">
+    {% for s in screenings %}
+    <li>
+      <span>{{ s.start_time.strftime("%H:%M") }} — {{ s.room.name }} ({{ s.room.room_type }})</span>
+      <span>{{ "%.2f"|format(s.price) }} €</span>
+      <a class="btn btn-small" href="/seances/{{ s.id }}">Choisir mes places</a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p>Aucune séance à venir pour ce film.</p>
+  {% endfor %}
+</section>
+{% endblock %}

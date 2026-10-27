@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Inscription — Le Grand Cinéma{% endblock %}
+{% block content %}
+<section class="form-card">
+  <h1>Inscription</h1>
+  <form id="register-form">
+    <label>Nom complet <input type="text" name="full_name" required></label>
+    <label>E-mail <input type="email" name="email" required></label>
+    <label>Mot de passe <input type="password" name="password" required></label>
+    <p class="form-error" id="register-error"></p>
+    <button class="btn" type="submit">Créer mon compte</button>
+  </form>
+  <p>Déjà un compte ? <a href="/login">Connectez-vous</a>.</p>
+</section>
+{% endblock %}
+{% block scripts %}
+<script>
+document.getElementById("register-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const data = Object.fromEntries(new FormData(event.target).entries());
+  const res = await fetch("/api/auth/register", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(data),
+  });
+  if (res.ok || res.status === 201) {
+    window.location.href = "/login";
+  } else {
+    const body = await res.json();
+    document.getElementById("register-error").textContent = body.detail || "Inscription impossible.";
+  }
+});
+</script>
+{% endblock %}

@@ -110,6 +110,22 @@ sur 7 jours).
 Ces comptes sont créés automatiquement par le seed et rappelés sur la
 page de connexion.
 
+## Gestion des films
+
+Connectez-vous avec un compte administrateur puis ouvrez `/admin` et
+l'onglet **Films**. Le formulaire permet de créer une fiche avec son titre,
+sa description, son genre, son réalisateur, sa distribution, sa durée, sa
+date de sortie, sa classification, sa langue et une URL de bande-annonce
+YouTube. Les affiches acceptées sont JPEG, PNG, GIF et WebP, jusqu'à 5 Mo;
+elles sont stockées dans `static/uploads/films/`.
+
+Les nouveaux films sont enregistrés en brouillon par défaut. Utilisez
+**Publier** ou choisissez **Publié** dans le formulaire pour les afficher
+sur l'accueil, `/api/films` et leur page de détail. Les brouillons restent
+visibles dans l'administration uniquement. Les anciens films présents dans
+une base existante sont conservés et restent publiés lors de la mise à jour
+du schéma.
+
 ## Configuration de la base de données
 
 Par défaut, SQLite est utilisé (`sqlite:///./grand_cinema.db`).

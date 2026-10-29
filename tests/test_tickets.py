@@ -32,8 +32,20 @@ def test_ticket_qr_png(client, db):
 
 
 def test_ticket_unknown_code_404(client):
+    login(client, "user@grandcinema.fr", "User123!")
     response = client.get("/api/tickets/INCONNU123")
     assert response.status_code == 404
+
+
+def test_ticket_requires_owner_or_admin(client, db):
+    login(client, "user@grandcinema.fr", "User123!")
+    booking = _book(client, db)
+    code = booking["ticket_code"]
+    assert "user_email" not in client.get(f"/api/tickets/{code}").json()
+    login(client, "user2@grandcinema.fr", "User123!")
+    assert client.get(f"/api/tickets/{code}").status_code == 404
+    assert client.get(f"/api/tickets/{code}/qr.png").status_code == 404
+    assert client.get(f"/billets/{code}").status_code == 404
 
 
 def test_ticket_use_by_admin_then_reuse_rejected(client, db):

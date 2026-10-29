@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import get_current_admin, get_current_user
-from app.models import Reservation, ReservationSeat, Screening, Ticket, User
+from app.models import Film, Reservation, ReservationSeat, Screening, Ticket, User
 from app.security import generate_ticket_code
 
 router = APIRouter(prefix="/api", tags=["bookings"])
@@ -61,7 +61,12 @@ class BookingBody(BaseModel):
 @router.get("/screenings/{screening_id}/seats")
 def get_seats(screening_id: int, db: Session = Depends(get_db)) -> dict:
     """Plan de salle d'une séance : dimensions, places prises, prix."""
-    screening = db.query(Screening).filter(Screening.id == screening_id).first()
+    screening = (
+        db.query(Screening)
+        .join(Film)
+        .filter(Screening.id == screening_id, Film.is_published.is_(True))
+        .first()
+    )
     if screening is None:
         raise HTTPException(status_code=404, detail="Séance introuvable.")
     taken = [
@@ -93,7 +98,15 @@ def create_booking(
     """Réserve des places pour une séance (transaction atomique)."""
     from datetime import datetime
 
-    screening = db.query(Screening).filter(Screening.id == body.screening_id).first()
+    screening = (
+        db.query(Screening)
+        .join(Film)
+        .filter(
+            Screening.id == body.screening_id,
+            Film.is_published.is_(True),
+        )
+        .first()
+    )
     if screening is None:
         raise HTTPException(status_code=404, detail="Séance introuvable.")
     if screening.start_time <= datetime.now():
@@ -220,24 +233,38 @@ def cancel_my_booking(
     return {"detail": "Réservation annulée.", "id": reservation.id}
 
 
-@router.get("/tickets/{code}")
-def get_ticket(code: str, db: Session = Depends(get_db)) -> dict:
-    """Détail d'un billet à partir de son code (le code fait office de secret)."""
+def _accessible_ticket(code: str, db: Session, user: User) -> Ticket:
     ticket = db.query(Ticket).filter(Ticket.code == code.upper()).first()
-    if ticket is None:
+    if ticket is None or (
+        ticket.reservation.user_id != user.id and user.role != "admin"
+    ):
         raise HTTPException(status_code=404, detail="Billet introuvable.")
+    return ticket
+
+
+@router.get("/tickets/{code}")
+def get_ticket(
+    code: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Détail d'un billet à partir de son code (le code fait office de secret)."""
+    ticket = _accessible_ticket(code, db, user)
     payload = _reservation_payload(ticket.reservation)
+    payload.pop("user_email", None)
     payload["ticket_code"] = ticket.code
     payload["ticket_status"] = ticket.status
     return payload
 
 
 @router.get("/tickets/{code}/qr.png")
-def ticket_qr(code: str, db: Session = Depends(get_db)) -> Response:
+def ticket_qr(
+    code: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> Response:
     """Image QR du billet (PNG, générée avec segno)."""
-    ticket = db.query(Ticket).filter(Ticket.code == code.upper()).first()
-    if ticket is None:
-        raise HTTPException(status_code=404, detail="Billet introuvable.")
+    ticket = _accessible_ticket(code, db, user)
     qr = segno.make(f"GRAND-CINEMA:{ticket.code}")
     buffer = io.BytesIO()
     qr.save(buffer, kind="png", scale=6, border=2)

@@ -58,4 +58,4 @@ def decode_access_token(token: str) -> dict | None:
 
 def generate_ticket_code() -> str:
     """Génère un code de billet unique (12 caractères hexadécimaux)."""
-    return secrets.token_hex(6).upper()
+    return secrets.token_hex(16).upper()

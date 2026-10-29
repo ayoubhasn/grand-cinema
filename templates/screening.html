@@ -1,104 +1,27 @@
 {% extends "base.html" %}
 {% block title %}Choisir mes places — Le Grand Cinéma{% endblock %}
 {% block content %}
-<section>
-  <h1>{{ screening.film.title }}</h1>
-  <p class="meta">{{ screening.room.name }} ({{ screening.room.room_type }}) · {{ screening.start_time.strftime("%d/%m/%Y à %H:%M") }} · {{ "%.2f"|format(screening.price) }} € par place</p>
-  <div class="screen-label">ÉCRAN</div>
-  <div class="seat-map" id="seat-map"></div>
-  <p class="legend">
-    <span>■ Libre</span><span>■ Prise</span><span>■ Sélectionnée</span>
-  </p>
-  <p>Places sélectionnées : <strong id="selected-list">aucune</strong></p>
-  <p>Total : <strong id="total">0,00 €</strong></p>
-  <p class="form-error" id="booking-error"></p>
-  {% if user %}
-  <button class="btn" id="book-btn">Réserver ces places</button>
-  {% else %}
-  <p>Connectez-vous pour réserver : <a class="btn" href="/login">Connexion</a></p>
-  {% endif %}
+<a class="back-link" href="/films/{{ screening.film.id }}">← Retour au film</a>
+<section class="booking-layout" aria-labelledby="booking-title">
+  <div class="booking-main">
+    <header class="booking-heading"><span class="eyebrow">Réservation des places</span><h1 id="booking-title">{{ screening.film.title }}</h1>
+      <p class="meta">{{ screening.room.name }} · {{ screening.room.room_type }} · {{ screening.start_time.strftime("%d/%m/%Y à %H:%M") }}</p></header>
+    <div class="seat-picker">
+      <div class="screen-label"><span>ÉCRAN</span></div>
+      <div class="seat-map-scroll"><div class="seat-map" id="seat-map" data-rows="{{ rows }}" data-cols="{{ cols }}" data-price="{{ screening.price }}" data-taken='{{ taken | tojson }}' aria-label="Plan des places"></div></div>
+      <ul class="legend" aria-label="Légende des places"><li><span class="seat-key available"></span>Disponible</li><li><span class="seat-key selected"></span>Sélectionnée</li><li><span class="seat-key taken"></span>Réservée</li></ul>
+    </div>
+  </div>
+  <aside class="booking-summary" aria-label="Récapitulatif de la réservation">
+    <span class="eyebrow">Votre séance</span><h2>{{ screening.film.title }}</h2>
+    <p class="summary-detail">{{ screening.start_time.strftime("%d/%m/%Y · %H:%M") }}<br>{{ screening.room.name }} · {{ screening.room.room_type }}</p>
+    <div class="summary-row"><span>Prix par place</span><strong>{{ "%.2f"|format(screening.price) }} €</strong></div>
+    <div class="summary-row"><span>Places choisies</span><strong id="selected-list">Aucune</strong></div>
+    <div class="summary-total"><span>Total</span><strong id="total">0,00 €</strong></div>
+    <p class="form-error" id="booking-error" role="alert" aria-live="polite"></p>
+    {% if user %}<button class="btn btn-wide" id="book-btn" type="button" data-price="{{ screening.price }}" data-screening-id="{{ screening.id }}" disabled>Confirmer les places</button>
+    {% else %}<a class="btn btn-wide" href="/login">Connectez-vous pour réserver</a>{% endif %}
+    <p class="summary-note">Votre sélection est sécurisée lors de la confirmation.</p>
+  </aside>
 </section>
-{% endblock %}
-{% block scripts %}
-<script>
-const ROWS = {{ rows }};
-const COLS = {{ cols }};
-const TAKEN = new Set({{ taken | tojson }});
-const PRICE = {{ screening.price }};
-const SCREENING_ID = {{ screening.id }};
-const selected = new Set();
-const mapEl = document.getElementById("seat-map");
-
-function rowLabel(index) {
-  let label = "";
-  let n = index + 1;
-  while (n > 0) {
-    const rem = (n - 1) % 26;
-    label = String.fromCharCode(65 + rem) + label;
-    n = Math.floor((n - 1) / 26);
-  }
-  return label;
-}
-function refreshSummary() {
-  document.getElementById("selected-list").textContent =
-    selected.size ? [...selected].sort().join(", ") : "aucune";
-  document.getElementById("total").textContent =
-    (selected.size * PRICE).toFixed(2).replace(".", ",") + " €";
-}
-for (let r = 0; r < ROWS; r++) {
-  const rowDiv = document.createElement("div");
-  rowDiv.className = "seat-row";
-  const label = document.createElement("span");
-  label.className = "seat-row-label";
-  label.textContent = rowLabel(r);
-  rowDiv.appendChild(label);
-  for (let c = 1; c <= COLS; c++) {
-    const seatLabel = rowLabel(r) + c;
-    const btn = document.createElement("button");
-    btn.className = "seat";
-    btn.textContent = c;
-    btn.title = seatLabel;
-    if (TAKEN.has(seatLabel)) {
-      btn.classList.add("taken");
-      btn.disabled = true;
-    } else {
-      btn.addEventListener("click", () => {
-        if (selected.has(seatLabel)) {
-          selected.delete(seatLabel);
-          btn.classList.remove("selected");
-        } else {
-          selected.add(seatLabel);
-          btn.classList.add("selected");
-        }
-        refreshSummary();
-      });
-    }
-    rowDiv.appendChild(btn);
-  }
-  mapEl.appendChild(rowDiv);
-}
-const bookBtn = document.getElementById("book-btn");
-if (bookBtn) {
-  bookBtn.addEventListener("click", async () => {
-    if (!selected.size) {
-      document.getElementById("booking-error").textContent = "Sélectionnez au moins une place.";
-      return;
-    }
-    const res = await fetch("/api/bookings", {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({screening_id: SCREENING_ID, seats: [...selected]}),
-    });
-    const body = await res.json();
-    if (res.status === 201) {
-      window.location.href = "/billets/" + body.ticket_code;
-    } else if (res.status === 401) {
-      window.location.href = "/login";
-    } else {
-      document.getElementById("booking-error").textContent =
-        body.detail || "Réservation impossible.";
-    }
-  });
-}
-</script>
 {% endblock %}

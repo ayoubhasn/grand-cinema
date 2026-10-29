@@ -31,6 +31,35 @@ def test_stats_reflect_bookings(client, db):
     assert stats["global_fill_rate"] == 16.7
 
 
+def test_stats_explain_cancelled_reservations(client, db):
+    login(client, "user@grandcinema.fr", "User123!")
+    booking = client.post(
+        "/api/bookings",
+        json={"screening_id": db[1]["future"].id, "seats": ["A1"]},
+    ).json()
+    client.post(f"/api/bookings/{booking['reservation_id']}/cancel")
+    login(client, "admin@grandcinema.fr", "Admin123!")
+    stats = client.get("/api/admin/stats").json()
+    assert stats["total_reservations"] == 0
+    assert stats["cancelled_reservations"] == 1
+    assert stats["tickets_sold"] == 0
+
+
+def test_room_and_screening_history_cannot_be_cascaded(client, db):
+    login(client, "admin@grandcinema.fr", "Admin123!")
+    room_id = db[1]["room"].id
+    screening_id = db[1]["future"].id
+    room_delete = client.delete(f"/api/admin/rooms/{room_id}")
+    assert room_delete.status_code == 409
+    client.post(
+        "/api/bookings",
+        json={"screening_id": screening_id, "seats": ["A1"]},
+    )
+    screening_delete = client.delete(f"/api/admin/screenings/{screening_id}")
+    assert screening_delete.status_code == 409
+    assert client.get("/api/admin/bookings").json()
+
+
 def test_admin_crud_film(client):
     login(client, "admin@grandcinema.fr", "Admin123!")
     created = client.post(

@@ -21,6 +21,11 @@ def _film_payload(film: Film) -> dict:
         "director": film.director,
         "release_year": film.release_year,
         "poster": film.poster,
+        "release_date": film.release_date.isoformat() if film.release_date else None,
+        "age_rating": film.age_rating,
+        "language": film.language,
+        "cast": film.cast_names,
+        "trailer_url": film.trailer_url,
     }
 
 
@@ -40,14 +45,14 @@ def _screening_payload(screening: Screening) -> dict:
 @router.get("/films")
 def list_films(db: Session = Depends(get_db)) -> list[dict]:
     """Liste tous les films à l'affiche."""
-    films = db.query(Film).order_by(Film.title).all()
+    films = db.query(Film).filter(Film.is_published.is_(True)).order_by(Film.title).all()
     return [_film_payload(film) for film in films]
 
 
 @router.get("/films/{film_id}")
 def get_film(film_id: int, db: Session = Depends(get_db)) -> dict:
     """Détail d'un film avec ses séances à venir."""
-    film = db.query(Film).filter(Film.id == film_id).first()
+    film = db.query(Film).filter(Film.id == film_id, Film.is_published.is_(True)).first()
     if film is None:
         raise HTTPException(status_code=404, detail="Film introuvable.")
     screenings = (
@@ -71,7 +76,9 @@ def list_screenings(
     db: Session = Depends(get_db),
 ) -> list[dict]:
     """Liste les séances à venir, filtrables par film et par jour (AAAA-MM-JJ)."""
-    query = db.query(Screening).filter(Screening.start_time >= datetime.now())
+    query = db.query(Screening).join(Film).filter(
+        Screening.start_time >= datetime.now(), Film.is_published.is_(True)
+    )
     if film_id is not None:
         query = query.filter(Screening.film_id == film_id)
     if date is not None:
@@ -90,7 +97,11 @@ def list_screenings(
 @router.get("/screenings/{screening_id}")
 def get_screening(screening_id: int, db: Session = Depends(get_db)) -> dict:
     """Détail d'une séance."""
-    screening = db.query(Screening).filter(Screening.id == screening_id).first()
+    screening = (
+        db.query(Screening).join(Film).filter(
+            Screening.id == screening_id, Film.is_published.is_(True)
+        ).first()
+    )
     if screening is None:
         raise HTTPException(status_code=404, detail="Séance introuvable.")
     return _screening_payload(screening)

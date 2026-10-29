@@ -1,6 +1,105 @@
 """Tests d'authentification : inscription, connexion, profil."""
 
 from tests.conftest import login
+from sqlalchemy.exc import OperationalError
+
+
+def test_login_form_uses_post_without_query_credentials(client):
+    response = client.get("/login")
+    assert response.status_code == 200
+    assert 'method="post" action="/login"' in response.text
+    assert response.request.url.query == b""
+
+
+def test_registration_form_uses_post_without_query_credentials(client):
+    response = client.get("/register")
+    assert response.status_code == 200
+    assert 'method="post" action="/register"' in response.text
+    assert response.request.url.query == b""
+
+
+def test_registration_form_fallback_posts_and_redirects(client):
+    response = client.post(
+        "/register",
+        data={
+            "full_name": "Compte de test",
+            "email": "fallback@example.test",
+            "password": "Secret123!",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login?registered=1"
+    assert response.request.url.query == b""
+
+
+def test_registration_form_duplicate_email_is_shown_without_password(client):
+    response = client.post(
+        "/register",
+        data={
+            "full_name": "Compte existant",
+            "email": "user@grandcinema.fr",
+            "password": "Secret123!",
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 400
+    assert "Cet e-mail est déjà utilisé." in response.text
+    assert "Secret123!" not in response.text
+    assert response.request.url.query == b""
+
+
+def test_admin_login_form_redirects_to_admin_and_sets_session(client):
+    response = client.post(
+        "/login",
+        data={"email": "admin@grandcinema.fr", "password": "Admin123!"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert response.headers["location"] == "/admin"
+    assert "access_token" in response.cookies
+    current = client.get("/api/auth/me")
+    assert current.status_code == 200
+    assert current.json()["role"] == "admin"
+
+
+def test_regular_user_login_form_redirects_to_home(client):
+    response = client.post(
+        "/login",
+        data={"email": "user@grandcinema.fr", "password": "User123!"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 303
+    assert response.headers["location"] == "/"
+    assert client.get("/api/auth/me").json()["role"] == "user"
+
+
+def test_login_form_invalid_credentials_render_clear_error(client):
+    response = client.post(
+        "/login",
+        data={"email": "admin@grandcinema.fr", "password": "wrong-secret"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 401
+    assert "E-mail ou mot de passe incorrect." in response.text
+    assert "wrong-secret" not in response.text
+    assert response.request.url.query == b""
+
+
+def test_login_form_database_error_renders_retry_message(client, monkeypatch):
+    def failing_authentication(db, email, password):
+        raise OperationalError("select user", {}, RuntimeError("database unavailable"))
+
+    monkeypatch.setattr(
+        "app.routers.pages.authenticate_credentials", failing_authentication
+    )
+    response = client.post(
+        "/login",
+        data={"email": "admin@grandcinema.fr", "password": "Admin123!"},
+        follow_redirects=False,
+    )
+    assert response.status_code == 503
+    assert "Connexion temporairement indisponible. Réessayez." in response.text
 
 
 def test_register_creates_user(client):

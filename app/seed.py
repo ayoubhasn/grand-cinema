@@ -36,6 +36,7 @@ FILMS = [
         "director": "Claire Vasseur",
         "release_year": 2025,
         "poster": "film1.svg",
+        "is_published": True,
         "synopsis": (
             "Dans une ville qui ne dort jamais, une conductrice de métro "
             "découvre, lors de sa dernière ronde, un passager qui semble "
@@ -50,6 +51,7 @@ FILMS = [
         "director": "Mehdi Larbi",
         "release_year": 2026,
         "poster": "film2.svg",
+        "is_published": True,
         "synopsis": (
             "En pleine semaine du festival de Jazz, une jeune trompettiste "
             "venue d'ailleurs croise un pianiste de bar. Entre scènes "
@@ -63,6 +65,7 @@ FILMS = [
         "director": "Anaïs Roche",
         "release_year": 2024,
         "poster": "film3.svg",
+        "is_published": True,
         "synopsis": (
             "Une cartographe hérite d'une carte incomplète menant à une île "
             "que personne n'a jamais retrouvée deux fois. Elle embarque avec "
@@ -76,6 +79,7 @@ FILMS = [
         "director": "Théo Marchand",
         "release_year": 2025,
         "poster": "film4.svg",
+        "is_published": True,
         "synopsis": (
             "Un chef de gare maniaque, une valise échangée et un train qui "
             "n'arrive jamais à l'heure : une journée ordinaire qui déraille "
@@ -89,6 +93,7 @@ FILMS = [
         "director": "Sarah Benali",
         "release_year": 2026,
         "poster": "film5.svg",
+        "is_published": True,
         "synopsis": (
             "Une enquêtrice obstinée suit la piste d'un voleur qui ne dérobe "
             "que des objets sans valeur, sauf aux yeux de leurs propriétaires. "
@@ -102,6 +107,7 @@ FILMS = [
         "director": "Lucas Perrin",
         "release_year": 2025,
         "poster": "film6.svg",
+        "is_published": True,
         "synopsis": (
             "En 2087, une ingénieure met au point une machine capable de "
             "projeter les rêves sur grand écran. Quand les rêves d'un inconnu "

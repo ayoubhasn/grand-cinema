@@ -38,6 +38,10 @@ Projet inspiré de l'énoncé d'examen « Le Grand Cinéma » : 10 salles,
   FastAPI), aucune dépendance externe.
 - **Base de données** : SQLite par défaut (`grand_cinema.db`),
   PostgreSQL possible via `DATABASE_URL`.
+- La base SQLite par défaut est résolue depuis le dossier du projet,
+  même si Uvicorn est lancé depuis un autre répertoire. `COOKIE_SECURE`
+  vaut `true` par défaut pour protéger le cookie de session en HTTPS ;
+  mettez `COOKIE_SECURE=false` uniquement pour un serveur local en HTTP.
 - **QR codes** : segno (pur Python).
 - **Mots de passe** : PBKDF2-HMAC-SHA256 (stdlib), jamais en clair.
 - **Tests** : pytest + pytest-cov. **Qualité** : ruff.

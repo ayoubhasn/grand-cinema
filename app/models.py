@@ -4,10 +4,11 @@ Socle : utilisateurs, films, salles, séances.
 Branche ``feature/reservation`` : réservations, places réservées, billets.
 """
 
-from datetime import datetime
+from datetime import date, datetime, timezone
 
 from sqlalchemy import (
     DateTime,
+    Date,
     Float,
     ForeignKey,
     Integer,
@@ -20,6 +21,11 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
 
+def _utcnow_naive() -> datetime:
+    """UTC timestamp kept naive for compatibility with existing SQLite rows."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 class User(Base):
     """Utilisateur de la plateforme (rôle ``user`` ou ``admin``)."""
 
@@ -30,7 +36,7 @@ class User(Base):
     hashed_password: Mapped[str] = mapped_column(String(255))
     full_name: Mapped[str] = mapped_column(String(255), default="")
     role: Mapped[str] = mapped_column(String(20), default="user")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow_naive)
 
     reservations: Mapped[list["Reservation"]] = relationship(
         "Reservation", back_populates="user", cascade="all, delete-orphan"
@@ -50,6 +56,12 @@ class Film(Base):
     director: Mapped[str] = mapped_column(String(255), default="")
     release_year: Mapped[int] = mapped_column(Integer, default=0)
     poster: Mapped[str] = mapped_column(String(255), default="")
+    release_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    age_rating: Mapped[str] = mapped_column(String(30), default="Tous publics")
+    language: Mapped[str] = mapped_column(String(100), default="Français")
+    cast_names: Mapped[str] = mapped_column(Text, default="")
+    trailer_url: Mapped[str] = mapped_column(String(500), default="")
+    is_published: Mapped[bool] = mapped_column(default=False, nullable=False)
 
     screenings: Mapped[list["Screening"]] = relationship(
         "Screening", back_populates="film", cascade="all, delete-orphan"
@@ -100,7 +112,7 @@ class Reservation(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     screening_id: Mapped[int] = mapped_column(ForeignKey("screenings.id"))
     status: Mapped[str] = mapped_column(String(20), default="confirmed")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow_naive)
 
     user: Mapped[User] = relationship("User", back_populates="reservations")
     screening: Mapped[Screening] = relationship(
@@ -151,7 +163,7 @@ class Ticket(Base):
     )
     code: Mapped[str] = mapped_column(String(32), unique=True, index=True)
     status: Mapped[str] = mapped_column(String(20), default="valid")
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow_naive)
 
     reservation: Mapped[Reservation] = relationship(
         "Reservation", back_populates="ticket"

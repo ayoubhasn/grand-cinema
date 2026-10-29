@@ -1,38 +1,17 @@
 {% extends "base.html" %}
 {% block title %}Connexion — Le Grand Cinéma{% endblock %}
 {% block content %}
-<section class="form-card">
-  <h1>Connexion</h1>
-  <form id="login-form">
-    <label>E-mail <input type="email" name="email" required></label>
-    <label>Mot de passe <input type="password" name="password" required></label>
-    <p class="form-error" id="login-error"></p>
-    <button class="btn" type="submit">Se connecter</button>
-  </form>
-  <p>Pas encore de compte ? <a href="/register">Créez-en un</a>.</p>
-  <aside class="demo-box">
-    <h2>Comptes de démonstration</h2>
-    <p>Administrateur : <code>admin@grandcinema.fr</code> / <code>Admin123!</code></p>
-    <p>Utilisateur : <code>user@grandcinema.fr</code> / <code>User123!</code></p>
-  </aside>
+<section class="auth-layout">
+  <div class="auth-aside"><span class="eyebrow">Le grand écran vous attend</span><h1>La magie du cinéma commence ici.</h1><p>Retrouvez vos films, vos séances et vos billets au même endroit.</p></div>
+  <div class="form-card auth-card">
+    <span class="eyebrow">Ravi de vous revoir</span><h2>Connexion</h2><p class="form-intro">Connectez-vous pour retrouver vos réservations.</p>
+    <form id="login-form" data-auth-form="login" method="post" action="/login">
+      <label for="login-email">Adresse e-mail</label><input id="login-email" type="email" name="email" autocomplete="email" value="{{ login_email|default('') }}" required>
+      <label for="login-password">Mot de passe</label><input id="login-password" type="password" name="password" autocomplete="current-password" required>
+      <p class="form-error" id="login-error" role="alert" aria-live="polite">{{ login_error|default('') }}</p>
+      <button class="btn btn-wide" type="submit">Se connecter <span aria-hidden="true">→</span></button>
+    </form>
+    <p class="auth-switch">Pas encore de compte ? <a href="/register">Inscrivez-vous</a></p>
+  </div>
 </section>
-{% endblock %}
-{% block scripts %}
-<script>
-document.getElementById("login-form").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const data = Object.fromEntries(new FormData(event.target).entries());
-  const res = await fetch("/api/auth/login", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify(data),
-  });
-  if (res.ok) {
-    window.location.href = "/";
-  } else {
-    const body = await res.json();
-    document.getElementById("login-error").textContent = body.detail || "Connexion impossible.";
-  }
-});
-</script>
 {% endblock %}

@@ -3,6 +3,18 @@
 from tests.conftest import login
 
 
+def test_draft_screening_is_not_visible_or_bookable(client, db):
+    login(client, "user@grandcinema.fr", "User123!")
+    db[1]["film"].is_published = False
+    db[0].commit()
+    screening_id = db[1]["future"].id
+    assert client.get(f"/api/screenings/{screening_id}/seats").status_code == 404
+    response = client.post(
+        "/api/bookings", json={"screening_id": screening_id, "seats": ["A1"]}
+    )
+    assert response.status_code == 404
+
+
 def _future_id(db):
     return db[1]["future"].id
 

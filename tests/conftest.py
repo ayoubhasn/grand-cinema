@@ -11,6 +11,7 @@ import tempfile
 _tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
 _tmp.close()
 os.environ["DATABASE_URL"] = f"sqlite:///{_tmp.name}"
+os.environ["COOKIE_SECURE"] = "false"
 
 import pytest
 from datetime import datetime, timedelta
@@ -51,6 +52,7 @@ def _seed_minimal(db):
         director="Test",
         release_year=2025,
         poster="film1.svg",
+        is_published=True,
     )
     room = Room(name="Salle Test", room_type="Standard", capacity=6, rows=2, cols=3)
     db.add_all([film, room])

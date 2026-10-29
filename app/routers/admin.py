@@ -1,14 +1,19 @@
 """Routes d'administration : statistiques, CRUD et réservations."""
 
-from datetime import datetime
+from datetime import date, datetime
+from pathlib import Path
+import secrets
+from urllib.parse import urlparse
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy.orm import Session
+from starlette.datastructures import UploadFile
 
 from app.database import get_db
 from app.dependencies import get_current_admin
-from app.models import Film, Reservation, ReservationSeat, Room, Screening, User
+from app.models import Film, Reservation, ReservationSeat, Room, Screening, Ticket, User
+from app.main_helpers import static_dir
 from app.routers.bookings import _reservation_payload, cancel_reservation
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -25,6 +30,7 @@ def _fill_rate(reserved: int, capacity: int) -> float:
 def stats(db: Session = Depends(get_db), admin: User = Depends(Admin)) -> dict:
     """Statistiques de fréquentation et taux de remplissage."""
     confirmed = db.query(Reservation).filter(Reservation.status == "confirmed").all()
+    cancelled_count = db.query(Reservation).filter(Reservation.status == "cancelled").count()
     total_seats = sum(len(r.seats) for r in confirmed)
     total_revenue = round(
         sum(len(r.seats) * r.screening.price for r in confirmed), 2
@@ -103,6 +109,8 @@ def stats(db: Session = Depends(get_db), admin: User = Depends(Admin)) -> dict:
 
     return {
         "total_reservations": len(confirmed),
+        "cancelled_reservations": cancelled_count,
+        "tickets_sold": db.query(Ticket).filter(Ticket.status.in_(("valid", "used"))).count(),
         "total_seats": total_seats,
         "total_revenue": total_revenue,
         "global_fill_rate": _fill_rate(total_reserved, total_capacity),
@@ -113,13 +121,85 @@ def stats(db: Session = Depends(get_db), admin: User = Depends(Admin)) -> dict:
 
 
 class FilmBody(BaseModel):
-    title: str
-    genre: str = ""
-    duration_min: int = 0
-    synopsis: str = ""
-    director: str = ""
-    release_year: int = 0
-    poster: str = "film1.svg"
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    title: str = Field(min_length=1, max_length=255)
+    genre: str = Field(default="", max_length=100)
+    duration_min: int = Field(default=0, ge=0, le=1000)
+    synopsis: str = Field(default="", max_length=10000)
+    director: str = Field(default="", max_length=255)
+    release_year: int = Field(default=0, ge=0, le=2200)
+    poster: str = Field(default="film1.svg", max_length=255)
+    release_date: date | None = None
+    age_rating: str = Field(default="Tous publics", max_length=30)
+    language: str = Field(default="Français", max_length=100)
+    cast_names: str = Field(default="", max_length=2000)
+    trailer_url: str = Field(default="", max_length=500)
+    is_published: bool = False
+
+def _film_payload(film: Film) -> dict:
+    return {
+        "id": film.id, "title": film.title, "genre": film.genre,
+        "duration_min": film.duration_min, "synopsis": film.synopsis,
+        "director": film.director, "release_year": film.release_year,
+        "poster": film.poster,
+        "release_date": (
+            film.release_date.isoformat() if film.release_date else None
+        ),
+        "age_rating": film.age_rating, "language": film.language,
+        "cast": film.cast_names, "trailer_url": film.trailer_url,
+        "is_published": film.is_published,
+    }
+
+
+async def _film_request_data(request: Request) -> tuple[dict, UploadFile | None]:
+    if "application/json" in request.headers.get("content-type", ""):
+        return await request.json(), None
+    form = await request.form()
+    data, poster_file = {}, None
+    for key, value in form.multi_items():
+        if key == "poster_file" and isinstance(value, UploadFile) and value.filename:
+            poster_file = value
+        elif isinstance(value, str):
+            data[key] = value
+    return data, poster_file
+
+
+def _validate_trailer_url(value: str) -> None:
+    if value:
+        parsed = urlparse(value)
+        youtube_hosts = {"youtube.com", "www.youtube.com", "youtu.be", "m.youtube.com"}
+        if parsed.scheme != "https" or parsed.hostname not in youtube_hosts:
+            raise HTTPException(
+                status_code=422,
+                detail="L'URL de la bande-annonce doit être un lien YouTube HTTPS valide.",
+            )
+
+
+async def _save_poster(upload: UploadFile) -> str:
+    allowed = {
+        "image/jpeg": (b"\xff\xd8\xff", ".jpg"),
+        "image/png": (b"\x89PNG\r\n\x1a\n", ".png"),
+        "image/gif": (b"GIF8", ".gif"),
+        "image/webp": (b"RIFF", ".webp"),
+    }
+    spec = allowed.get(upload.content_type or "")
+    content = await upload.read(5 * 1024 * 1024 + 1)
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="L'affiche ne doit pas dépasser 5 Mo.")
+    valid_magic = spec and content.startswith(spec[0])
+    if upload.content_type == "image/webp":
+        valid_magic = valid_magic and content[8:12] == b"WEBP"
+    if not valid_magic:
+        raise HTTPException(
+            status_code=400,
+            detail="Format d'affiche invalide. Utilisez JPEG, PNG, GIF ou WebP.",
+        )
+    directory = static_dir() / "uploads" / "films"
+    directory.mkdir(parents=True, exist_ok=True)
+    filename = f"{secrets.token_hex(16)}{spec[1]}"
+    (directory / filename).write_bytes(content)
+    return f"uploads/films/{filename}"
 
 
 class RoomBody(BaseModel):
@@ -139,45 +219,77 @@ class ScreeningBody(BaseModel):
 
 @router.get("/films")
 def admin_list_films(db: Session = Depends(get_db), admin: User = Depends(Admin)):
-    return [
-        {
-            "id": f.id,
-            "title": f.title,
-            "genre": f.genre,
-            "duration_min": f.duration_min,
-            "director": f.director,
-            "release_year": f.release_year,
-            "poster": f.poster,
-        }
-        for f in db.query(Film).order_by(Film.id).all()
-    ]
+    return [_film_payload(f) for f in db.query(Film).order_by(Film.id).all()]
 
 
 @router.post("/films", status_code=201)
-def admin_create_film(
-    body: FilmBody, db: Session = Depends(get_db), admin: User = Depends(Admin)
+async def admin_create_film(
+    request: Request, db: Session = Depends(get_db), admin: User = Depends(Admin)
 ):
-    film = Film(**body.model_dump())
+    data, poster_file = await _film_request_data(request)
+    try:
+        body = FilmBody.model_validate(data)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors()) from exc
+    _validate_trailer_url(body.trailer_url)
+    fields = body.model_dump()
+    if poster_file:
+        fields["poster"] = await _save_poster(poster_file)
+    elif fields["poster"].startswith(("/", "\\")) or ".." in Path(fields["poster"]).parts:
+        raise HTTPException(status_code=422, detail="Chemin d'affiche invalide.")
+    film = Film(**fields)
     db.add(film)
     db.commit()
     db.refresh(film)
-    return {"id": film.id, "title": film.title}
+    return _film_payload(film)
 
 
 @router.put("/films/{film_id}")
-def admin_update_film(
+async def admin_update_film(
     film_id: int,
-    body: FilmBody,
+    request: Request,
     db: Session = Depends(get_db),
     admin: User = Depends(Admin),
 ):
     film = db.query(Film).filter(Film.id == film_id).first()
     if film is None:
         raise HTTPException(status_code=404, detail="Film introuvable.")
-    for key, value in body.model_dump().items():
+    data, poster_file = await _film_request_data(request)
+    try:
+        body = FilmBody.model_validate(data)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors()) from exc
+    _validate_trailer_url(body.trailer_url)
+    fields = body.model_dump()
+    if poster_file:
+        fields["poster"] = await _save_poster(poster_file)
+    elif fields["poster"].startswith(("/", "\\")) or ".." in Path(fields["poster"]).parts:
+        raise HTTPException(status_code=422, detail="Chemin d'affiche invalide.")
+    for key, value in fields.items():
         setattr(film, key, value)
     db.commit()
-    return {"id": film.id, "title": film.title}
+    db.refresh(film)
+    return _film_payload(film)
+
+
+@router.post("/films/{film_id}/publish")
+def admin_publish_film(film_id: int, db: Session = Depends(get_db), admin: User = Depends(Admin)):
+    film = db.query(Film).filter(Film.id == film_id).first()
+    if film is None:
+        raise HTTPException(status_code=404, detail="Film introuvable.")
+    film.is_published = True
+    db.commit()
+    return {"id": film.id, "is_published": True}
+
+
+@router.post("/films/{film_id}/unpublish")
+def admin_unpublish_film(film_id: int, db: Session = Depends(get_db), admin: User = Depends(Admin)):
+    film = db.query(Film).filter(Film.id == film_id).first()
+    if film is None:
+        raise HTTPException(status_code=404, detail="Film introuvable.")
+    film.is_published = False
+    db.commit()
+    return {"id": film.id, "is_published": False}
 
 
 @router.delete("/films/{film_id}")
@@ -187,6 +299,11 @@ def admin_delete_film(
     film = db.query(Film).filter(Film.id == film_id).first()
     if film is None:
         raise HTTPException(status_code=404, detail="Film introuvable.")
+    if film.screenings:
+        raise HTTPException(
+            status_code=409,
+            detail="Ce film possède des séances. Supprimez-les avant de supprimer le film.",
+        )
     db.delete(film)
     db.commit()
     return {"detail": "Film supprimé."}
@@ -238,6 +355,11 @@ def admin_update_room(
             status_code=400,
             detail="La capacité doit être égale à rangées x sièges par rangée.",
         )
+    if room.screenings and (room.rows, room.cols) != (body.rows, body.cols):
+        raise HTTPException(
+            status_code=409,
+            detail="Le plan de la salle ne peut pas changer tant que des séances y sont liées.",
+        )
     for key, value in body.model_dump().items():
         setattr(room, key, value)
     db.commit()
@@ -251,6 +373,11 @@ def admin_delete_room(
     room = db.query(Room).filter(Room.id == room_id).first()
     if room is None:
         raise HTTPException(status_code=404, detail="Salle introuvable.")
+    if room.screenings:
+        raise HTTPException(
+            status_code=409,
+            detail="Cette salle possède des séances. Supprimez-les avant la salle.",
+        )
     db.delete(room)
     db.commit()
     return {"detail": "Salle supprimée."}
@@ -294,6 +421,14 @@ def admin_delete_screening(
     screening = db.query(Screening).filter(Screening.id == screening_id).first()
     if screening is None:
         raise HTTPException(status_code=404, detail="Séance introuvable.")
+    if screening.reservations:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Cette séance possède un historique de réservations et ne peut pas "
+                "être supprimée."
+            ),
+        )
     db.delete(screening)
     db.commit()
     return {"detail": "Séance supprimée."}

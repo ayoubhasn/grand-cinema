@@ -4,13 +4,28 @@ Point central du projet : la réservation est atomique et la contrainte
 unique (séance, place) en base interdit toute double réservation, même
 lorsque deux requêtes arrivent simultanément (voir docs/BUGFIX.md).
 """
+from xml.sax.saxutils import escape
 
+from fastapi.responses import Response
+from reportlab.lib import colors
+from reportlab.lib.enums import TA_CENTER
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import mm
+from reportlab.platypus import (
+    SimpleDocTemplate,
+    Paragraph,
+    Spacer,
+    Table,
+    TableStyle,
+    Image as PDFImage,
+)
 import io
 import re
 import time
 
 import segno
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
@@ -242,6 +257,13 @@ def _accessible_ticket(code: str, db: Session, user: User) -> Ticket:
     return ticket
 
 
+def _ticket_display_status(ticket: Ticket) -> str:
+    """Treat any ticket on a non-confirmed reservation as cancelled."""
+    if ticket.reservation.status != "confirmed" or ticket.status == "cancelled":
+        return "cancelled"
+    return ticket.status
+
+
 @router.get("/tickets/{code}")
 def get_ticket(
     code: str,
@@ -253,7 +275,7 @@ def get_ticket(
     payload = _reservation_payload(ticket.reservation)
     payload.pop("user_email", None)
     payload["ticket_code"] = ticket.code
-    payload["ticket_status"] = ticket.status
+    payload["ticket_status"] = _ticket_display_status(ticket)
     return payload
 
 
@@ -270,21 +292,188 @@ def ticket_qr(
     qr.save(buffer, kind="png", scale=6, border=2)
     return Response(content=buffer.getvalue(), media_type="image/png")
 
+@router.get("/tickets/{code}/pdf")
+def download_ticket_pdf(
+    code: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> Response:
+    """Génère et télécharge le billet électronique en PDF."""
 
+    # Vérifier les droits d'accès au billet
+    ticket = _accessible_ticket(code, db, user)
+
+    reservation = ticket.reservation
+    screening = reservation.screening
+    film = screening.film
+    room = screening.room
+
+    # Générer le QR code avec le même contenu que le QR PNG existant
+    qr = segno.make(f"GRAND-CINEMA:{ticket.code}")
+    qr_buffer = io.BytesIO()
+    qr.save(qr_buffer, kind="png", scale=6, border=2)
+    qr_buffer.seek(0)
+
+    # Créer le PDF en mémoire
+    pdf_buffer = io.BytesIO()
+    document = SimpleDocTemplate(
+        pdf_buffer,
+        pagesize=A4,
+        rightMargin=22 * mm,
+        leftMargin=22 * mm,
+        topMargin=20 * mm,
+        bottomMargin=20 * mm,
+        title=f"Billet - {film.title}",
+        author="Le Grand Cinéma",
+    )
+
+    styles = getSampleStyleSheet()
+    styles.add(
+        ParagraphStyle(
+            name="CinemaTitle",
+            parent=styles["Title"],
+            fontName="Helvetica-Bold",
+            fontSize=23,
+            leading=28,
+            alignment=TA_CENTER,
+            textColor=colors.HexColor("#DDAF16"),
+            spaceAfter=8 * mm,
+        )
+    )
+    styles.add(
+        ParagraphStyle(
+            name="MovieTitle",
+            parent=styles["Heading1"],
+            fontSize=19,
+            leading=24,
+            alignment=TA_CENTER,
+            textColor=colors.HexColor("#202333"),
+            spaceAfter=5 * mm,
+        )
+    )
+
+    story = [
+        Paragraph("LE GRAND CINÉMA", styles["CinemaTitle"]),
+        Paragraph("BILLET ÉLECTRONIQUE", styles["Heading2"]),
+        Spacer(1, 4 * mm),
+        Paragraph(escape(film.title), styles["MovieTitle"]),
+        Paragraph(
+            f"{escape(room.name)} — {escape(room.room_type)}",
+            styles["Normal"],
+        ),
+        Spacer(1, 8 * mm),
+    ]
+
+    date_text = screening.start_time.strftime("%d/%m/%Y à %H:%M")
+    seats = sorted(seat.seat_label for seat in reservation.seats)
+    total = len(seats) * screening.price
+
+    ticket_status_label = {
+        "valid": "VALIDE",
+        "used": "DÉJÀ UTILISÉ",
+        "cancelled": "ANNULÉ",
+    }.get(_ticket_display_status(ticket), "NON VALIDE")
+    reservation_status_label = (
+        "CONFIRMÉE" if reservation.status == "confirmed" else "ANNULÉE"
+    )
+    rows = [
+        ["INFORMATION", "DÉTAIL"],
+        ["Film", Paragraph(escape(film.title), styles["Normal"])],
+        ["Séance", date_text],
+        ["Salle", escape(room.name)],
+        ["Type de salle", escape(room.room_type)],
+        ["Places", ", ".join(escape(s) for s in seats)],
+        ["Prix total", f"{total:.2f} EUR"],
+        ["Code du billet", ticket.code],
+        ["Statut du billet", ticket_status_label],
+        ["Statut de réservation", reservation_status_label],
+    ]
+
+    table = Table(rows, colWidths=[48 * mm, 100 * mm])
+    table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#202333")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTNAME", (0, 1), (0, -1), "Helvetica-Bold"),
+                ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#F4F5F8")),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#D8DCE5")),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 9),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 9),
+                ("TOPPADDING", (0, 0), (-1, -1), 9),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 9),
+            ]
+        )
+    )
+
+    story.extend(
+        [
+            table,
+            Spacer(1, 10 * mm),
+            Paragraph("QR CODE DU BILLET", styles["Heading2"]),
+            Spacer(1, 3 * mm),
+            PDFImage(qr_buffer, width=42 * mm, height=42 * mm),
+            Spacer(1, 4 * mm),
+            Paragraph(
+                "Présentez ce QR code à l'entrée. "
+                "La validation doit être effectuée par un administrateur.",
+                styles["Normal"],
+            ),
+        ]
+    )
+
+    document.build(story)
+    pdf_buffer.seek(0)
+
+    return Response(
+        content=pdf_buffer.getvalue(),
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="billet-{ticket.code}.pdf"'
+            ),
+            "Cache-Control": "no-store",
+        },
+    )
 @router.post("/tickets/{code}/use")
 def use_ticket(
     code: str,
     db: Session = Depends(get_db),
     admin: User = Depends(get_current_admin),
 ) -> dict:
-    """Marque un billet comme utilisé (contrôle à l'entrée, admin)."""
+    """Atomically mark a confirmed reservation's valid ticket as used."""
+    updated = (
+        db.query(Ticket)
+        .filter(
+            Ticket.code == code.upper(),
+            Ticket.status == "valid",
+            Ticket.reservation.has(Reservation.status == "confirmed"),
+        )
+        .update({Ticket.status: "used"}, synchronize_session=False)
+    )
+    if updated == 1:
+        db.commit()
+        return {"detail": "Billet validé.", "code": code.upper()}
+
+    # A failed conditional update is either an unknown, used, or cancelled ticket.
+    # Roll back before reading its current state, including after a concurrent winner.
+    db.rollback()
     ticket = db.query(Ticket).filter(Ticket.code == code.upper()).first()
     if ticket is None:
         raise HTTPException(status_code=404, detail="Billet introuvable.")
+    if ticket.status == "used":
+        raise HTTPException(status_code=400, detail="Billet déjà utilisé.")
+    if ticket.status == "cancelled" or ticket.reservation.status != "confirmed":
+        raise HTTPException(
+            status_code=400,
+            detail="Billet annulé : réservation non confirmée, entrée refusée.",
+        )
     if ticket.status != "valid":
         raise HTTPException(
             status_code=400, detail=f"Billet non valide (statut : {ticket.status})."
         )
-    ticket.status = "used"
-    db.commit()
-    return {"detail": "Billet validé.", "code": ticket.code}
+    # The reservation was confirmed but the conditional update did not transition
+    # the ticket, so refuse entry rather than assuming a valid state.
+    raise HTTPException(status_code=409, detail="Le billet n'a pas pu être validé.")

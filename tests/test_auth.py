@@ -146,5 +146,13 @@ def test_me_without_auth_rejected(client):
 def test_logout_clears_session(client):
     login(client, "user@grandcinema.fr", "User123!")
     assert client.get("/api/auth/me").status_code == 200
-    assert client.post("/api/auth/logout").status_code == 200
+    response = client.post("/api/auth/logout")
+    assert response.status_code == 200
+    cookie_header = response.headers["set-cookie"]
+    assert "access_token=" in cookie_header
+    assert "Max-Age=0" in cookie_header
+    assert "Path=/" in cookie_header
+    assert "HttpOnly" in cookie_header
+    assert "SameSite=lax" in cookie_header
+    assert "access_token" not in client.cookies
     assert client.get("/api/auth/me").status_code == 401

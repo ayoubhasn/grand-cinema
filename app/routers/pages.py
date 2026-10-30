@@ -161,6 +161,8 @@ def screening_page(
     user: User | None = Depends(get_optional_user),
 ):
     """Page de choix des places pour une séance."""
+    if user is not None and user.role == "admin":
+        return RedirectResponse(url="/admin", status_code=303)
     screening = (
         db.query(Screening).join(Film).filter(
             Screening.id == screening_id, Film.is_published.is_(True)
@@ -198,6 +200,8 @@ def my_tickets_page(
     """Page des billets de l'utilisateur connecté."""
     if user is None:
         return RedirectResponse(url="/login", status_code=303)
+    if user.role == "admin":
+        return RedirectResponse(url="/admin", status_code=303)
     reservations = (
         db.query(Reservation)
         .filter(Reservation.user_id == user.id)
@@ -219,6 +223,8 @@ def ticket_page(
     """Page d'un billet électronique (QR code)."""
     if user is None:
         return RedirectResponse(url="/login", status_code=303)
+    if user.role == "admin":
+        return RedirectResponse(url="/admin", status_code=303)
     ticket = db.query(Ticket).filter(Ticket.code == code.upper()).first()
     if ticket is None or (
         ticket.reservation.user_id != user.id and user.role != "admin"
@@ -241,3 +247,17 @@ def admin_page(
     if user.role != "admin":
         return RedirectResponse(url="/", status_code=303)
     return templates.TemplateResponse(request, "admin.html", _context(user))
+
+
+@router.get("/admin/check-ticket", response_class=HTMLResponse)
+def admin_check_ticket_page(
+    request: Request, user: User | None = Depends(get_optional_user)
+):
+    """Page de contrôle à l'entrée, accessible uniquement aux administrateurs."""
+    if user is None:
+        return RedirectResponse(url="/login", status_code=303)
+    if user.role != "admin":
+        return RedirectResponse(url="/", status_code=303)
+    return templates.TemplateResponse(
+        request, "admin_check_ticket.html", _context(user)
+    )

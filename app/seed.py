@@ -35,7 +35,7 @@ FILMS = [
         "duration_min": 118,
         "director": "Claire Vasseur",
         "release_year": 2025,
-        "poster": "film1.svg",
+        "poster": "uploads/films/Le Dernier Métro de Minuit.png",
         "is_published": True,
         "synopsis": (
             "Dans une ville qui ne dort jamais, une conductrice de métro "
@@ -50,7 +50,7 @@ FILMS = [
         "duration_min": 104,
         "director": "Mehdi Larbi",
         "release_year": 2026,
-        "poster": "film2.svg",
+        "poster": "uploads/films/Jazz sous les étoiles _ affiche du festival.png",
         "is_published": True,
         "synopsis": (
             "En pleine semaine du festival de Jazz, une jeune trompettiste "
@@ -64,7 +64,7 @@ FILMS = [
         "duration_min": 132,
         "director": "Anaïs Roche",
         "release_year": 2024,
-        "poster": "film3.svg",
+        "poster": "uploads/films/ile-aux-murmures.png",
         "is_published": True,
         "synopsis": (
             "Une cartographe hérite d'une carte incomplète menant à une île "
@@ -78,7 +78,7 @@ FILMS = [
         "duration_min": 96,
         "director": "Théo Marchand",
         "release_year": 2025,
-        "poster": "film4.svg",
+        "poster": "uploads/films/comedie-de-la-gare.png",
         "is_published": True,
         "synopsis": (
             "Un chef de gare maniaque, une valise échangée et un train qui "
@@ -92,7 +92,7 @@ FILMS = [
         "duration_min": 121,
         "director": "Sarah Benali",
         "release_year": 2026,
-        "poster": "film5.svg",
+        "poster": "uploads/films/Les Ombres de la Ville.png",
         "is_published": True,
         "synopsis": (
             "Une enquêtrice obstinée suit la piste d'un voleur qui ne dérobe "
@@ -106,7 +106,7 @@ FILMS = [
         "duration_min": 141,
         "director": "Lucas Perrin",
         "release_year": 2025,
-        "poster": "film6.svg",
+        "poster": "uploads/films/Voyage au Bout du Rêve.png",
         "is_published": True,
         "synopsis": (
             "En 2087, une ingénieure met au point une machine capable de "

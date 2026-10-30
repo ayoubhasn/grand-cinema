@@ -141,6 +141,7 @@
     const selectedList = document.getElementById("selected-list");
     const total = document.getElementById("total");
     const bookButton = document.getElementById("book-btn");
+    const canBook = seatMap.dataset.authenticated === "true" && Boolean(bookButton);
     const error = document.getElementById("booking-error");
     const rowLabel = (index) => {
       let label = "";
@@ -179,6 +180,10 @@
         if (taken.has(seatName)) {
           seat.classList.add("taken");
           seat.disabled = true;
+        } else if (!canBook) {
+          seat.classList.add("guest-locked");
+          seat.disabled = true;
+          seat.setAttribute("aria-label", `Place ${seatName}, disponible, connectez-vous pour réserver`);
         } else {
           seat.addEventListener("click", () => {
             if (selected.has(seatName)) {

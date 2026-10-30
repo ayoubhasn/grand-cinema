@@ -94,7 +94,11 @@ def login(body: LoginBody, response: Response, db: Session = Depends(get_db)) ->
 def logout(response: Response) -> dict:
     """Déconnecte l'utilisateur (suppression du cookie)."""
     response.delete_cookie(
-        COOKIE_NAME, path="/", secure=settings.cookie_secure, samesite="lax"
+        COOKIE_NAME,
+        path="/",
+        secure=settings.cookie_secure,
+        httponly=True,
+        samesite="lax",
     )
     return {"detail": "Déconnecté."}
 

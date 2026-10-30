@@ -15,6 +15,7 @@ def _read_token(request: Request, access_token: str | None) -> str | None:
     authorization = request.headers.get("Authorization")
     if authorization and authorization.startswith("Bearer "):
         return authorization[7:]
+    
     return None
 
 
@@ -54,5 +55,15 @@ def get_current_admin(user: User = Depends(get_current_user)) -> User:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Accès réservé aux administrateurs",
+        )
+    return user
+
+
+def get_current_customer(user: User = Depends(get_current_user)) -> User:
+    """Exige un compte client pour les réservations et billets personnels."""
+    if user.role != "user":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Cette fonctionnalité est réservée aux comptes clients.",
         )
     return user

@@ -8,7 +8,7 @@
   <div class="film-intro"><span class="eyebrow">{{ film.genre or 'À l’affiche' }}</span><h1 id="film-title">{{ film.title }}</h1>
     <p class="film-lede">{{ film.synopsis or 'Découvrez ce film au Grand Cinéma.' }}</p>
     <div class="film-quick-facts"><span>{{ film.duration_min }} min</span><span>{{ film.release_date.strftime('%d/%m/%Y') if film.release_date else film.release_year if film.release_year else 'Date à venir' }}</span><span>{{ film.age_rating or 'Classification non précisée' }}</span></div>
-    <a class="btn" href="#screenings">Choisir une séance <span aria-hidden="true">↓</span></a>
+    {% if not user or user.role != 'admin' %}<a class="btn" href="#screenings">Choisir une séance <span aria-hidden="true">↓</span></a>{% endif %}
   </div>
 </section>
 
@@ -30,7 +30,7 @@
 <section id="screenings" class="screenings-section" aria-labelledby="screenings-title">
   <div class="section-heading"><div><span class="eyebrow">À vous de choisir</span><h2 id="screenings-title">Séances à venir</h2></div></div>
     {% for day, screenings in by_day.items() %}<div class="screening-day"><h3>{{ screenings[0].start_time.strftime('%d/%m/%Y') }}</h3><div class="screening-grid">
-    {% for s in screenings %}<article class="screening-card"><div class="screening-time">{{ s.start_time.strftime('%H:%M') }}</div><div class="screening-room"><strong>{{ s.room.name }}</strong><span>{{ s.room.room_type }} · {{ '%.2f'|format(s.price) }} € / place</span></div><a class="btn btn-small" href="/seances/{{ s.id }}">Réserver <span aria-hidden="true">→</span></a></article>{% endfor %}
+    {% for s in screenings %}<article class="screening-card"><div class="screening-time">{{ s.start_time.strftime('%H:%M') }}</div><div class="screening-room"><strong>{{ s.room.name }}</strong><span>{{ s.room.room_type }} · {{ '%.2f'|format(s.price) }} € / place</span></div>{% if not user or user.role != 'admin' %}<a class="btn btn-small" href="/seances/{{ s.id }}">Réserver <span aria-hidden="true">→</span></a>{% endif %}</article>{% endfor %}
   </div></div>{% else %}<div class="empty-state compact"><span class="empty-icon" aria-hidden="true">◷</span><h3>Aucune séance programmée</h3><p>Les prochaines horaires seront annoncés prochainement.</p></div>{% endfor %}
 </section>
 {% endblock %}

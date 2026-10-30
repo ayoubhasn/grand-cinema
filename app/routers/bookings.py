@@ -31,7 +31,12 @@ from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.dependencies import get_current_admin, get_current_user
+from app.dependencies import (
+    get_current_admin,
+    get_current_customer,
+    get_current_user,
+    get_optional_user,
+)
 from app.models import Film, Reservation, ReservationSeat, Screening, Ticket, User
 from app.security import generate_ticket_code
 
@@ -74,8 +79,17 @@ class BookingBody(BaseModel):
 
 
 @router.get("/screenings/{screening_id}/seats")
-def get_seats(screening_id: int, db: Session = Depends(get_db)) -> dict:
+def get_seats(
+    screening_id: int,
+    db: Session = Depends(get_db),
+    user: User | None = Depends(get_optional_user),
+) -> dict:
     """Plan de salle d'une séance : dimensions, places prises, prix."""
+    if user is not None and user.role == "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Les places sont réservées aux comptes clients.",
+        )
     screening = (
         db.query(Screening)
         .join(Film)
@@ -108,7 +122,7 @@ def get_seats(screening_id: int, db: Session = Depends(get_db)) -> dict:
 def create_booking(
     body: BookingBody,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_customer),
 ) -> dict:
     """Réserve des places pour une séance (transaction atomique)."""
     from datetime import datetime
@@ -124,7 +138,16 @@ def create_booking(
     )
     if screening is None:
         raise HTTPException(status_code=404, detail="Séance introuvable.")
-    if screening.start_time <= datetime.now():
+    # PostgreSQL may return timezone-aware datetimes (for example when the
+    # existing column is TIMESTAMP WITH TIME ZONE), while SQLite and older
+    # schemas return naive values. Compare like with like to avoid a TypeError
+    # when a customer confirms a booking.
+    now = (
+        datetime.now(screening.start_time.tzinfo)
+        if screening.start_time.tzinfo is not None
+        else datetime.now()
+    )
+    if screening.start_time <= now:
         raise HTTPException(status_code=400, detail="La séance est déjà passée.")
     labels: list[str] = []
     seen: set[str] = set()
@@ -197,7 +220,7 @@ def create_booking(
 
 @router.get("/bookings/me")
 def my_bookings(
-    db: Session = Depends(get_db), user: User = Depends(get_current_user)
+    db: Session = Depends(get_db), user: User = Depends(get_current_customer)
 ) -> list[dict]:
     """Réservations de l'utilisateur connecté."""
     reservations = (
@@ -232,15 +255,15 @@ def _reservation_payload(reservation: Reservation) -> dict:
 def cancel_my_booking(
     reservation_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_customer),
 ) -> dict:
-    """Annule une réservation (propriétaire ou administrateur)."""
+    """Annule une réservation appartenant à l'utilisateur client connecté."""
     reservation = (
         db.query(Reservation).filter(Reservation.id == reservation_id).first()
     )
     if reservation is None:
         raise HTTPException(status_code=404, detail="Réservation introuvable.")
-    if reservation.user_id != user.id and user.role != "admin":
+    if reservation.user_id != user.id:
         raise HTTPException(status_code=403, detail="Accès refusé.")
     if reservation.status == "cancelled":
         raise HTTPException(status_code=400, detail="Réservation déjà annulée.")
@@ -283,7 +306,7 @@ def get_ticket(
 def ticket_qr(
     code: str,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_customer),
 ) -> Response:
     """Image QR du billet (PNG, générée avec segno)."""
     ticket = _accessible_ticket(code, db, user)
@@ -296,7 +319,7 @@ def ticket_qr(
 def download_ticket_pdf(
     code: str,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_customer),
 ) -> Response:
     """Génère et télécharge le billet électronique en PDF."""
 
